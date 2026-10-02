@@ -2,7 +2,6 @@ package com.netmusiclite.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -85,9 +84,9 @@ object AppearancePrefs {
      * ★ 2026-10-02 用户口径「背景取色功能改为默认开启」：默认值由 false 改为 true。
      *
      * 为什么敢默认开：本机（Android 11）上这个开关的色源是**用户自己设的背景图主色**
-     * （见 [BackgroundStore.seedColor]），没设背景图时 [EffectiveSeed] 会原样回落预设种子色 ——
-     * 也就是说「开了但还没设背景图」不会把界面弄成奇怪的颜色，只是等用户设图后才开始跟随。
-     * Android 12+ 则直接跟随系统壁纸色（Monet），这也是系统本身的默认观感。
+     * （见 [BackgroundStore.seedColor]）；2026-10-02 起未设背景图时进一步回落**当前歌曲
+     * 封面主色**（用户口径「无论是否设置壁纸都生效」，见 Theme.kt 的 EffectiveSeed）——
+     * 与背景的环境色同一色源，界面整体协调；封面也没有时才回落预设种子色，永不空转。
      * 存量用户不受影响：sp 里已经显式存过 true/false 的，照旧读回自己的选择。
      */
     private const val DEF_DYNAMIC = true
@@ -102,11 +101,9 @@ object AppearancePrefs {
      * 动态取色是否**可用**（2026-10-01 起恒为 true）。
      *
      * 原实现要求 Android 12+（系统 Monet 取色），导致本机（OWW261 / Android 11）上
-     * 开关是灰的、用户根本开不了。现在按系统版本分流：
-     *  · Android 12+ → 系统壁纸取色（Monet 色板）；
-     *  · Android 11 及以下 → 取**自定义背景图的主色**（本机 `wallpaper` 服务都不存在，
-     *    背景图是这台设备上唯一可自定义的「壁纸」，见 [BackgroundStore.seedColor]）。
-     * 因此任何版本都能开，只是 Android 11 上需先设置背景图才有色可依。
+     * 开关是灰的、用户根本开不了，改为任何版本都能开。2026-10-02 用户口径
+     * 「安卓 12 的系统壁纸效果删掉不要」后，所有版本统一走一条色源链：
+     * 自定义背景图主色 → 歌曲封面主色 → 预设种子色（见 Theme.kt 的 EffectiveSeed）。
      */
     val dynamicSupported: Boolean
         get() = true
@@ -185,9 +182,8 @@ object AppearancePrefs {
      */
     fun dynamicSourceLabel(): String = when {
         !_dynamic -> "关闭时使用下方预设种子色"
-        Build.VERSION.SDK_INT >= 31 -> "已开启 · 配色跟随系统壁纸"
-        BackgroundStore.ready -> "已开启 · 配色取自下方自定义背景图"
-        else -> "已开启 · 先选一张背景图才会生效"
+        BackgroundStore.ready -> "已开启 · 配色取自定义背景图"
+        else -> "已开启 · 未设背景图时跟随歌曲封面主色"
     }
 
     /** 明暗模式中文名（设置页副标题用） */

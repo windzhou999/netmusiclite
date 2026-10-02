@@ -1,5 +1,6 @@
 package com.netmusiclite.ui.screens.settings
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +61,7 @@ import com.netmusiclite.data.BackgroundStore
 import com.netmusiclite.data.NcmApi
 import com.netmusiclite.data.PRESET_ACCENTS
 import com.netmusiclite.data.QualityPrefs
+import com.netmusiclite.R
 import com.netmusiclite.data.ThemeMode
 import com.netmusiclite.ui.screens.login.LoginQrScreen
 import com.netmusiclite.ui.theme.Accent
@@ -77,7 +80,7 @@ import java.io.File
 @Composable
 fun SettingsScreen(nav: NavHostController) {
     val loudnessEnabled = LoudnessPrefs.enabled
-    StackedCardList(title = "设置", progressTotal = 6, horizontalInsetPx = 10) {
+    StackedCardList(title = "设置", progressTotal = 7, horizontalInsetPx = 10) {
         item(key = "account") {
             StackedIconCard(
                 title = "我的账号",
@@ -162,6 +165,15 @@ fun SettingsScreen(nav: NavHostController) {
                 icon = NcmIcons.Bookmark,
                 navMotionKind = NavMotionKind.Pill,
             ) { nav.navigateWithMotion(Routes.DISCLAIMER) }
+        }
+        // ★ 2026-10-02 用户口径「设置列表末尾加关于应用入口」
+        item(key = "about") {
+            StackedIconCard(
+                title = "关于应用",
+                subtitle = "版本 · 作者 · 项目地址",
+                icon = NcmIcons.Info,
+                navMotionKind = NavMotionKind.Pill,
+            ) { nav.navigateWithMotion(Routes.ABOUT) }
         }
         item(key = "credit") {
             Text(
@@ -605,16 +617,21 @@ fun ThemeSettingsScreen(nav: NavHostController) {
                 }
             }
         }
-        // 玻璃卡片开关只在**已选背景图**时出现：没背景图时 frostedGlass 本来就固定走纯色兜底分支，
-        // 这时露出开关只会让人以为能切、切了却没反应。
-        if (bgReady) {
+        // ★ 2026-10-02 用户口径「浅色模式下未选择壁纸也可以设置为玻璃卡片」：
+        //   开关出现条件从「已选背景图」放宽为「已选背景图 **或** 浅色主题」——
+        //   浅色无图时 frostedGlass 走「透底轻玻璃」分支（白 72% + 高光描边），开关不再空转；
+        //   深色无图依旧固定黑色半透明兜底，开关继续隐藏（切了没有可见区别）。
+        if (bgReady || AppearancePrefs.isLight) {
             item(key = "card_style") {
                 StackedCard(height = 66.dp) {
                     Column(Modifier.weight(1f)) {
                         Text("玻璃卡片", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
                         Text(
-                            if (BackgroundStore.cardGlass) "毛玻璃取样，透出背景"
-                            else "纯黑半透明，更沉稳省电",
+                            when {
+                                !BackgroundStore.cardGlass -> if (bgReady) "纯黑半透明，更沉稳省电" else "纯色卡片，更沉稳省电"
+                                bgReady -> "毛玻璃取样，透出背景"
+                                else -> "轻玻璃透出页面底色（浅色主题）"
+                            },
                             fontSize = 9.sp, color = TextSecondary,
                         )
                     }
@@ -622,6 +639,24 @@ fun ThemeSettingsScreen(nav: NavHostController) {
                         checked = BackgroundStore.cardGlass,
                         onCheckedChange = { BackgroundStore.updateCardGlass(it) },
                     )
+                }
+            }
+        }
+        // ★ 2026-10-02 用户口径「玻璃卡片没法调节透明度，一起加上」：
+        //   滑杆只属于「浅色无图轻玻璃」形态 —— 有背景图时的玻璃形态控制是「卡片模糊强度」。
+        //   值越大越透（卡片越「轻」），往左拖 = 更实、文字对比更强。
+        if (!bgReady && AppearancePrefs.isLight && BackgroundStore.cardGlass) {
+            item(key = "card_transparency") {
+                StackedCard(height = 88.dp) {
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        Text("玻璃透明度", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.Slider(
+                            value = BackgroundStore.cardTransparency,
+                            onValueChange = { BackgroundStore.updateCardTransparency(it) },
+                            valueRange = 0.05f..0.7f,
+                        )
+                    }
                 }
             }
         }
@@ -823,6 +858,105 @@ fun QualityScreen(nav: NavHostController) {
                     modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(0xCC2B2B33))
                         .padding(horizontal = 16.dp, vertical = 7.dp))
             }
+        }
+    }
+}
+
+/**
+ * 关于应用（2026-10-02 用户口径「设置列表末尾加关于应用：最上方图标，下方版本号 / 作者 / 项目地址」）。
+ *
+ * 纯静态展示页。两个工程细节：
+ *  · 版本号运行时从 PackageManager 读取而不是写死 —— 升版本只改 build.gradle.kts，这页零维护；
+ *  · 应用图标 = 自适应图标的「复刻」：mipmap 里的 XML 是 AdaptiveIconDrawable，
+ *    Compose 的 painterResource 不支持直接加载，所以取前景矢量层自己拼到白底圆上
+ *    （描边用 TextTertiary 半透明，浅色主题下白圆才不至于和页面底色糊在一起）。
+ *
+ * 项目地址点击 → 直接复制到剪贴板 + Toast（2026-10-02 用户口径「点击自动复制项目地址」）。
+ * 手表上没有可用的浏览器交互，复制之后粘贴到手机端打开是最稳的动线。
+ */
+@Composable
+fun AboutScreen(nav: NavHostController) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val versionName = remember {
+        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "未知"
+    }
+    val githubUrl = "https://github.com/windzhou999/netmusiclite"
+    NcmListPage(title = "关于应用") {
+        item(key = "header") {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 4.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFFFFF))
+                        .border(1.dp, TextTertiary.copy(alpha = 0.55f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = "应用图标",
+                        modifier = Modifier.size(58.dp),
+                    )
+                }
+                Spacer(Modifier.height(7.dp))
+                Text("NetMusicLite", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            }
+        }
+        item(key = "version") {
+            Text(
+                "版本 $versionName",
+                fontSize = 10.sp, color = TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            )
+        }
+        item(key = "author") {
+            Text(
+                "作者 昼小风",
+                fontSize = 10.sp, color = TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            )
+        }
+        item(key = "github") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(SurfaceStrong)
+                    .clickable {
+                        // ★ 2026-10-02 用户口径「点击 GitHub 地址自动复制项目地址」：
+                        //   不再尝试拉起浏览器 —— 手表上既打不开网页、粘贴场景也在手机端，
+                        //   复制是最稳的一步动线。Android 10+ 后台读剪贴板受限，但这里写剪贴板
+                        //   是前台交互动作，不受影响。
+                        val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("NetMusicLite", githubUrl))
+                        android.widget.Toast.makeText(ctx, "已复制项目地址", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(horizontal = 13.dp, vertical = 8.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("GitHub 项目地址", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                    Text(githubUrl, fontSize = 8.sp, color = TextSecondary, maxLines = 1)
+                }
+                Icon(NcmIcons.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+            }
+        }
+        item(key = "note") {
+            Text(
+                "本应用为非官方第三方客户端\n仅供学习交流 · GPL-3.0 开源",
+                fontSize = 8.sp, color = TextTertiary, lineHeight = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
         }
     }
 }

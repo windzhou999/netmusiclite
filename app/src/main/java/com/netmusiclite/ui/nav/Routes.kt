@@ -66,6 +66,7 @@ object Routes {
     /** 主题设置：明暗模式 / 自动取色 / 种子色 / 背景与玻璃材质（2026-10-01 合并了原「背景与玻璃」页） */
     const val THEME = "settings/theme"
     const val DISCLAIMER = "settings/disclaimer"
+    const val ABOUT = "settings/about"
     const val CONSENT = "consent"
     const val ACCOUNT = "settings/account"
     const val CACHE_CLEAN = "settings/cache"

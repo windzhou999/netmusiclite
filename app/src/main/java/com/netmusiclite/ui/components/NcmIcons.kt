@@ -305,4 +305,14 @@ object NcmIcons {
         s(1.9f) { moveTo(12f, 3f); arcTo(9f, 9f, 0f, false, false, 12f, 21f) }
     } }
 
+    /** 关于应用（圆圈 + i）：与 History 同款的整圆描边 + 圆点竖线 */
+    val Info: ImageVector by lazy { icon("Info") {
+        s {
+            moveTo(3f, 12f); arcTo(9f, 9f, 0f, false, true, 21f, 12f)
+            arcTo(9f, 9f, 0f, false, true, 3f, 12f)
+        }
+        s(2.2f) { moveTo(12f, 11f); lineTo(12f, 16.2f) }
+        s(2.6f) { moveTo(12f, 7.3f); lineTo(12f, 7.32f) }
+    } }
+
 }

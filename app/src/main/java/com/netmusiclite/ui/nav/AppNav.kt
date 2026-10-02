@@ -10,6 +10,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import com.netmusiclite.R
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
@@ -68,6 +73,7 @@ import com.netmusiclite.ui.screens.search.SearchScreen
 import com.netmusiclite.ui.screens.settings.AccountScreen
 import com.netmusiclite.ui.screens.settings.AddAccountQrScreen
 import com.netmusiclite.ui.screens.settings.CacheCleanScreen
+import com.netmusiclite.ui.screens.settings.AboutScreen
 import com.netmusiclite.ui.screens.settings.DisclaimerScreen
 import com.netmusiclite.ui.screens.settings.QualityScreen
 import com.netmusiclite.ui.screens.settings.SettingsScreen
@@ -533,6 +539,7 @@ fun AppRoot() {
             com.netmusiclite.ui.screens.settings.ThemeSettingsScreen(nav)
         })
         composable(Routes.DISCLAIMER, content = backable { DisclaimerScreen(nav) })
+        composable(Routes.ABOUT, content = backable { AboutScreen(nav) })
         }
 
         } // end if (contentReady)：重量级导航图组合结束（这段耗时被启动浮层遮住）
@@ -554,10 +561,24 @@ fun AppRoot() {
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {
-                androidx.compose.material3.Icon(
-                    com.netmusiclite.ui.components.NcmIcons.Play, contentDescription = "NetMusicLite",
-                    tint = com.netmusiclite.ui.theme.Accent, modifier = Modifier.size(46.dp),
-                )
+                // ★ 2026-10-02 用户口径「进入加载时图标同步外部应用图标」：
+                //   启动浮层图标从 Play 符号换成与桌面启动器一致的自适应图标复刻
+                //   （白底圆 + ic_launcher_foreground 前景矢量 —— mipmap 的
+                //   AdaptiveIconDrawable 无法被 painterResource 加载，与关于页同一套拼法）。
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFFFFF))
+                        .border(1.dp, com.netmusiclite.ui.theme.TextTertiary.copy(alpha = 0.55f), CircleShape),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(com.netmusiclite.R.drawable.ic_launcher_foreground),
+                        contentDescription = "NetMusicLite",
+                        modifier = Modifier.size(58.dp),
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 androidx.compose.material3.Text(
                     "NetMusicLite",

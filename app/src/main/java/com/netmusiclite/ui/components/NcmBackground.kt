@@ -58,6 +58,16 @@ object SongAmbient {
     var color by mutableStateOf(Color(0xFF0A0A0C))
         private set
 
+    /**
+     * ★ 2026-10-02 新增：**原始**封面主色（未向主题基准色插值的那一份）。
+     * 「自动取色」在未设背景图时的色源（见 Theme.kt 的 EffectiveSeed）——
+     * 用户口径「自动取色打开以后无论是否设置壁纸都生效」：背景在无图时本就跟随
+     * 封面环境色（color 字段），强调色补上同一色源后整条链路无壁纸也生效。
+     * 取色失败保留上一首的值（与 color 同策略）；初始 null = 尚未取到过，回落预设种子色。
+     */
+    var rawColor by mutableStateOf<Color?>(null)
+        private set
+
     suspend fun pull(model: Any?) {
         val b = base()
         if (model == null) {
@@ -74,6 +84,7 @@ object SongAmbient {
         // 封面网络/解码失败：保留上一首颜色（不退默认），快速切歌不再“失效”
         // 浅色主题插值系数加大到 0.86：浅底上需要更弱的彩度才不刺眼
         if (c != null) {
+            rawColor = c
             color = lerp(c, b, if (com.netmusiclite.ui.theme.isLightTheme) 0.86f else 0.75f)
         }
     }

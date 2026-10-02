@@ -82,11 +82,11 @@ private val GLASS_HIGHLIGHT_BRUSH = Brush.verticalGradient(
     0.35f to Color.Transparent,
 )
 
-/** 边缘高光描边：仅在玻璃模式（有背景图 **且** 用户没切到黑色卡片）且卡片模糊强度 < 50% 时绘制 ——
- *  轻模糊（透底清晰）用高光/描边辅助轮廓；重模糊、无背景、或黑色半透明卡片都不加。 */
+/** 边缘高光描边：玻璃模式（有背景图，或 ★ 2026-10-02 浅色无图的轻玻璃）且卡片模糊强度 < 50% 时绘制 ——
+ *  轻模糊（透底清晰）用高光/描边辅助轮廓；重模糊、深色无图兜底、或黑色半透明卡片都不加。 */
 @Composable
 fun Modifier.glassEdgeHighlight(shape: Shape): Modifier =
-    if (com.netmusiclite.data.BackgroundStore.ready &&
+    if ((com.netmusiclite.data.BackgroundStore.ready || com.netmusiclite.ui.theme.isLightTheme) &&
         com.netmusiclite.data.BackgroundStore.cardGlass &&
         com.netmusiclite.data.BackgroundStore.cardBlur < 0.5f
     )
@@ -97,12 +97,38 @@ fun Modifier.glassEdgeHighlight(shape: Shape): Modifier =
  * 磨砂玻璃卡片材质：背景图取样模糊 + 半透明填充；
  * 边缘高光跟随模糊强度：< 50% 绘制（辅助轮廓），≥ 50% 不画（干净玻璃）。
  * 无背景图 → 玻璃整体关闭（2026-09-13 全局生效）：卡片底色改半透明黑（融入环境色背景）。
+ * ★ 2026-10-02 用户口径「浅色模式下未选择壁纸也可以设置为玻璃卡片」：浅色 + 无图 +
+ * 开关开 → 新增「透底轻玻璃」分支（LightPalette 白 72% 填充 + 高光描边），开关不再空转。
  */
 @Composable
 fun Modifier.frostedGlass(shape: Shape, fill: Color = SurfaceGlass): Modifier {
     // ★ 2026-10-01：走「黑色半透明」分支的条件从「没有背景图」扩展为
     //   「没有背景图 **或** 用户主动选了黑色卡片」—— 设置页「卡片样式」开关切到黑色时，
     //   全站玻璃件（含播放器/歌词/歌房里的）立刻统一变成纯黑 45%，不取样、不做糊。
+    // ★ 2026-10-02 用户口径「浅色模式下未选择壁纸也可以设置为玻璃卡片」：
+    //   无背景图可取样时，浅色主题走「透底轻玻璃」—— LightPalette 标定的白 72% 填充
+    //   （SurfaceGlass）透出页面底色形成层次，模糊强度 < 50% 时加边缘高光；
+    //   深色主题无图依旧走下方黑色半透明兜底（深色观感本就成立），开关在设置页隐藏。
+    //   注意条件里的 !ready：设了背景图必须走下面的取样分支，不能被这里截走。
+    if (!com.netmusiclite.data.BackgroundStore.ready &&
+        com.netmusiclite.ui.theme.isLightTheme &&
+        com.netmusiclite.data.BackgroundStore.cardGlass
+    ) {
+        return this
+            .clip(shape)
+            .drawBehind {
+                // 显式传入填充的玻璃件（强调色圆钮等）维持原填充，不吃轻玻璃。
+                // 透明度可调（2026-10-02）：cardTransparency 越大越透，默认 0.28 = 白 72% 观感。
+                drawRect(
+                    if (fill == SurfaceGlass)
+                        SurfaceGlass.copy(alpha = (1f - com.netmusiclite.data.BackgroundStore.cardTransparency).coerceIn(0.15f, 1f))
+                    else fill
+                )
+                if (com.netmusiclite.data.BackgroundStore.cardBlur < 0.5f) {
+                    drawRect(GLASS_HIGHLIGHT_BRUSH)
+                }
+            }
+    }
     return if (!com.netmusiclite.data.BackgroundStore.ready ||
         !com.netmusiclite.data.BackgroundStore.cardGlass
     ) {

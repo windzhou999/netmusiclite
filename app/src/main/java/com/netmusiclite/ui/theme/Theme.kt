@@ -4,8 +4,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -15,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -157,26 +154,17 @@ private fun Color.boostForLight(): Color {
 }
 
 /**
- * 动态取色的「系统侧」种子（Android 12+ 的 Monet 色板）。
- *
- * 由 [NcmTheme] 在组合期从 `dynamicLight/DarkColorScheme(ctx)` 读出 primary 写入。
- * ⚠ 不能在协程或普通函数里调 `dynamicXxxColorScheme` —— 它是 @Composable，
- *   而且内部要读 `android.R.color.system_accent1_*`（API 31 才有的资源），
- *   在 Android 11 上调用会直接抛异常。所以调用点必须用 `SDK_INT >= 31` 判断，
- *   **不能只看开关是否打开**（开关现在已经对所有版本可用了）。
- */
-object DynamicSeed {
-    /** null = 未开启动态取色，或系统侧不可用（Android 11 及以下改走背景图色） */
-    var systemColor by mutableStateOf<Color?>(null)
-}
-
-/**
- * 动态取色最终采用的种子色（2026-10-01）：
+ * 动态取色最终采用的种子色（2026-10-01；2026-10-02 按用户口径两次调整）：
  *  1. 未开启 → 用户选的预设种子色；
- *  2. Android 12+ → 系统壁纸取色（Monet 色板的 primary）；
- *  3. Android 11 及以下 → **自定义背景图主色**（本机连 wallpaper 服务都不存在，
- *     背景图是这台设备上唯一可自定义的「壁纸」，见 `BackgroundStore.seedColor`）；
- *  4. 取不到（如 Android 11 上还没设背景图）→ 回落预设种子色，永不空转。
+ *  2. 自定义背景图主色（见 `BackgroundStore.seedColor`）；
+ *  3. 没设背景图 → **当前歌曲封面主色**（`SongAmbient.rawColor`，未插值的原始取色）。
+ *     用户口径「自动取色打开以后无论是否设置壁纸都生效」—— 背景在未设图时本就跟随
+ *     封面环境色，强调色补上同一色源后，整条自动取色链路无壁纸也能生效；
+ *  4. 封面也还没取到（刚启动/无歌/取色失败）→ 回落预设种子色，永不空转。
+ *
+ * ★ 2026-10-02 用户口径「安卓 12 的系统壁纸效果删掉不要，只要安卓 11 的效果」：
+ *   原 Android 12+ 的 Monet（dynamicXxxColorScheme）分支整体移除，所有版本统一走
+ *   上面这条链 —— 观感跨版本一致，也不再依赖系统壁纸。
  *
  * 之所以统一成一个「有效种子」而不是让全局 Accent 与 M3 色板各走一路：
  * 必须保证「图标 / 按钮 / 选中态的强调色」与「ColorScheme.primary」永远是同一个色，
@@ -186,11 +174,9 @@ val EffectiveSeed: Color
     get() {
         val accent = com.netmusiclite.data.AppearancePrefs.accent
         if (!com.netmusiclite.data.AppearancePrefs.dynamicColor) return accent
-        // 只读一次状态：写成 `x != null -> x!!` 会把同一个 Compose 状态读两遍，
-        // 是应当避免的写法（快照理论上可能在两次读取之间被替换）。
-        val sys = DynamicSeed.systemColor
-        if (sys != null) return sys
-        return com.netmusiclite.data.BackgroundStore.seedColor ?: accent
+        return com.netmusiclite.data.BackgroundStore.seedColor
+            ?: com.netmusiclite.ui.components.SongAmbient.rawColor
+            ?: accent
     }
 
 // ---- 全局强调色（动态）：种子来自 EffectiveSeed（预设色或动态取色），读的是 Compose 状态，
@@ -477,8 +463,9 @@ private fun accentRamp(seed: Color, dark: Boolean): AccentRamp {
 /**
  * 构建完整的 M3 ColorScheme（36 个角色全部落到项目语义色，不留系统默认紫）：
  *
- * 1. 基底用 M3 baseline 全套角色；动态取色可用且用户开启时改走系统壁纸取色
- *    （`dynamicLight/DarkColorScheme`，Android 12+）。
+ * 1. 基底用 M3 baseline 全套角色打底（★ 2026-10-02 用户口径「安卓 12 的系统壁纸效果
+ *    删掉不要」：原 Android 12+ 会改用 `dynamicXxxColorScheme` 的系统 Monet 色板，
+ *    已整体移除 —— 所有版本统一 baseline，观感跨版本一致）；
  * 2. 再用「种子色派生的角色梯度」覆盖 primary/secondary/tertiary 及其 container；
  *    error 四色沿用 baseline（M3 的错误红是通用语义色，不该被种子色改写）。
  * 3. 最后把项目既有语义色覆盖回 background / surface / outline —— 必须与 20+ 个
@@ -487,18 +474,7 @@ private fun accentRamp(seed: Color, dark: Boolean): AccentRamp {
  */
 @Composable
 private fun buildColorScheme(pal: NcmPalette, accent: Color): ColorScheme {
-    val ctx = LocalContext.current
-    // ⚠ 必须用 SDK_INT 判断能否走系统 Monet，**不能**用 AppearancePrefs.dynamicSupported：
-    //   后者现在恒为 true（Android 11 靠背景图取色），而 dynamicXxxColorScheme 内部读的是
-    //   API 31 才有的 android.R.color.system_accent1_*，在 Android 11 上调用会直接抛异常。
-    //   Android 11 的路径 = baseline 打底 + accentRamp(EffectiveSeed = 背景图主色) 覆盖。
-    val monetAvailable = com.netmusiclite.data.AppearancePrefs.dynamicColor &&
-        android.os.Build.VERSION.SDK_INT >= 31
-    val base: ColorScheme = if (monetAvailable) {
-        if (pal.light) dynamicLightColorScheme(ctx) else dynamicDarkColorScheme(ctx)
-    } else {
-        if (pal.light) lightColorScheme() else darkColorScheme()
-    }
+    val base: ColorScheme = if (pal.light) lightColorScheme() else darkColorScheme()
     val r = accentRamp(accent, dark = !pal.light)
     // 中性 surface 容器阶梯：避免 Switch / Slider 落在 baseline 的紫调灰上
     val scLowest = if (pal.light) Color(0xFFFFFFFF) else Color(0xFF0E0E11)
@@ -551,21 +527,8 @@ fun NcmTheme(content: @Composable () -> Unit) {
     SideEffect { com.netmusiclite.data.AppearancePrefs.systemDark = sysDark }
 
     val pal = palette        // 读组合状态 → 换主题整树重组
-
-    // Android 12+ 且开启动态取色：从系统 Monet 色板读出 primary，回填成「有效种子」，
-    // 让全局 Accent（图标/按钮/选中态）与 ColorScheme.primary 用同一个壁纸色。
-    // ⚠ 这里必须在组合期调用 dynamicXxxColorScheme（它是 @Composable），不能在协程里调。
-    //   回填走 SideEffect，所以 Android 12+ 上会有一帧沿用上次的种子 —— 这一帧在启动浮层
-    //   之下不可见；Android 11 走背景图色，monetSeed 恒为 null，无任何延迟。
-    val ctx = LocalContext.current
-    val monetSeed: Color? = if (com.netmusiclite.data.AppearancePrefs.dynamicColor &&
-        android.os.Build.VERSION.SDK_INT >= 31
-    ) {
-        if (pal.light) dynamicLightColorScheme(ctx).primary else dynamicDarkColorScheme(ctx).primary
-    } else {
-        null
-    }
-    SideEffect { DynamicSeed.systemColor = monetSeed }
+    // ★ 2026-10-02：原 Android 12+ 的 Monet 种子回填（dynamicXxxColorScheme →
+    //   DynamicSeed.systemColor）已随「删掉系统壁纸效果」整体移除。
 
     val accent = Accent
     MaterialTheme(colorScheme = buildColorScheme(pal, accent), content = content)

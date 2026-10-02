@@ -50,6 +50,15 @@ object BackgroundStore {
     var cardGlass by mutableStateOf(true)
         private set
 
+    /**
+     * 卡片玻璃透明度 0..1（2026-10-02 新增）：仅浅色主题无背景图的「透底轻玻璃」使用。
+     * 值越大越透 —— 轻玻璃填充 alpha = 1 - 本值；默认 0.28 = LightPalette 白 72% 的原观感。
+     * 滑杆往右拖 = 更透（卡片更「轻」，底色透出更多）；往左 = 更实、文字对比更强。
+     * 有背景图时的玻璃不走这个值（那边的形态控制是「卡片模糊强度」滑杆）。
+     */
+    var cardTransparency by mutableStateOf(0.28f)
+        private set
+
     /** 背景模糊强度 0..1（0 = 清晰；>0 时用独立模糊底图替换清晰背景） */
     var bgBlur by mutableStateOf(0f)
         private set
@@ -87,6 +96,7 @@ object BackgroundStore {
         dim = prefs.getFloat("bg_dim", 0.5f)
         cardBlur = prefs.getFloat("card_blur", 1f)
         cardGlass = prefs.getBoolean("card_glass", true)
+        cardTransparency = prefs.getFloat("card_transparency", 0.28f)
         bgBlur = prefs.getFloat("bg_blur_v", 0f)
         keepAmbient = prefs.getBoolean("bg_keep_ambient", true)
         ready = prefs.getBoolean("bg_on", false) && file.exists() && file.length() > 0
@@ -154,6 +164,12 @@ object BackgroundStore {
     fun updateCardGlass(v: Boolean) {
         cardGlass = v
         prefs.edit().putBoolean("card_glass", v).apply()
+    }
+
+    /** 浅色轻玻璃透明度滑杆（2026-10-02）：值越大越透，填充 alpha = 1 - 本值 */
+    fun updateCardTransparency(v: Float) {
+        cardTransparency = v.coerceIn(0f, 0.85f)
+        prefs.edit().putFloat("card_transparency", cardTransparency).apply()
     }
 
     private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
