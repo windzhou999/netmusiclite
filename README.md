@@ -1,4 +1,4 @@
-# WMusic
+# NetMusicLite
 
 一块圆屏手表上的网易云音乐第三方客户端。Kotlin + Jetpack Compose 单模块 Android 工程，为 466×466 圆形表盘（Wear OS）深度适配，也可以在普通手机上运行。
 
@@ -40,7 +40,7 @@
 ## 工程结构
 
 ```
-app/src/main/java/com/ncm/watch/
+app/src/main/java/com/netmusiclite/
 ├── data/        # 播放引擎、网易云接口与加密、会话/缓存/偏好存储
 ├── ui/
 │   ├── components/   # 通用组件（列表页、图标、表冠滚动、环境色背景等）
@@ -61,7 +61,7 @@ app/src/main/java/com/ncm/watch/
 本项目以 [GPL-3.0](LICENSE) 协议开源。
 
 ```
-WMusic — Wear OS 网易云音乐第三方客户端
+NetMusicLite — Wear OS 网易云音乐第三方客户端
 Copyright (C) 2026 昼小风
 
 This program is free software: you can redistribute it and/or modify

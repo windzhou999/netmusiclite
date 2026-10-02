@@ -10,7 +10,7 @@ plugins {
 // ★ 发布签名（2026-10-01）：从源码根目录的 keystore.properties 读取。
 //   为什么必须换掉 debug 签名：debug keystore 是公开的通用文件 —— 任何人拿它签一个
 //   同包名的 APK，在已安装设备上都能被当成「同一签名的升级包」装上；应用商店也一律拒收。
-//   keystore.properties / wmusic-release.jks / 签名信息.txt 三件套一起备份，丢了就再也
+//   keystore.properties / netmusiclite-release.jks / 签名信息.txt 三件套一起备份，丢了就再也
 //   无法给已发布的应用出升级包。
 //   文件缺失时回退 debug 签名（保证别人 clone 下来还能跑），并打一条警告。
 val keystorePropsFile = rootProject.file("keystore.properties")
@@ -23,7 +23,7 @@ val hasReleaseKey = keystorePropsFile.exists() &&
     !keystoreProps.getProperty("storePassword").isNullOrBlank()
 
 android {
-    namespace = "com.ncm.watch"
+    namespace = "com.netmusiclite"
     compileSdk = 35
 
     signingConfigs {
@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ncm.watch"
+        applicationId = "com.netmusiclite"
         minSdk = 26
         targetSdk = 35
         versionCode = 3
@@ -57,7 +57,7 @@ android {
             signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
-                logger.warn("WMusic: 未找到 keystore.properties，release 退回 debug 签名（不可用于发布）")
+                logger.warn("NetMusicLite: 未找到 keystore.properties，release 退回 debug 签名（不可用于发布）")
                 signingConfigs.getByName("debug")
             }
         }

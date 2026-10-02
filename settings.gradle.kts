@@ -24,5 +24,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ncm-watch"
+rootProject.name = "netmusiclite"
 include(":app")
