@@ -1,0 +1,16 @@
+# 构建产物
+build/
+app/build/
+
+# Gradle
+.gradle/
+.kotlin/
+
+# 本机配置（SDK 路径等，每人不同）
+local.properties
+
+# ⚠ 签名密钥与密码 —— 绝不能进仓库
+*.jks
+*.keystore
+keystore.properties
+签名信息.txt
